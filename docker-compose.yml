@@ -1,0 +1,74 @@
+services:
+  db:
+    build: ./bd
+    container_name: manutencao_db
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    environment:
+      POSTGRES_DB: manutencao
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Postgres@2026
+    volumes:
+      - ./bd/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./bd/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - ./bd/backup.sql:/docker-entrypoint-initdb.d/backup.sql:ro
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d manutencao"]
+      interval: 5s
+      retries: 20
+    networks:
+      rede:
+        ipv4_address: 172.28.0.10
+
+  pgbouncer:
+    image: edoburu/pgbouncer
+    container_name: manutencao_pgbouncer
+    environment:
+      DB_HOST: db
+      DB_NAME: manutencao
+      DB_USER: app_backend
+      DB_PASSWORD: Backend@2026
+      AUTH_TYPE: scram-sha-256
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 100
+      DEFAULT_POOL_SIZE: 10
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      rede:
+        ipv4_address: 172.28.0.11
+
+  backend:
+    build: ./backend
+    container_name: manutencao_backend
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://pgbouncer:5432/manutencao?prepareThreshold=0
+      SPRING_DATASOURCE_USERNAME: app_backend
+      SPRING_DATASOURCE_PASSWORD: Backend@2026
+    depends_on:
+      - pgbouncer
+    ports:
+      - "8080:8080"
+    networks:
+      - rede
+
+  frontend:
+    build: ./frontend
+    container_name: manutencao_frontend
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+    networks:
+      - rede
+
+volumes:
+  pgdata:
+
+networks:
+  rede:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24

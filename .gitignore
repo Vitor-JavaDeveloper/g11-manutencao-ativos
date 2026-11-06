@@ -1,0 +1,8 @@
+pgdata/
+postgres-data/
+**/var/lib/postgresql/
+target/
+node_modules/
+.idea/
+.vscode/
+*.log
